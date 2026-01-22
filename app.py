@@ -11,7 +11,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("李阳专属：多维比对与差异反馈工具")
+st.title("李阳小可爱专属匹配工具")
 
 # 1. 文件上传
 st.markdown('<div class="blue-header">1. 上传文件</div>', unsafe_allow_html=True)
@@ -97,3 +97,4 @@ if base_file and target_file:
             # 导出 CSV
             csv = final_df.to_csv(index=False).encode('utf-8-sig')
             st.download_button("📥 下载完整比对报告", csv, "match_report.csv", "text/csv")
+
