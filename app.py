@@ -3,28 +3,64 @@ import pandas as pd
 import re
 from rapidfuzz import process, fuzz
 
-st.set_page_config(page_title="影视多维匹配工具", layout="wide")
+# 1. 科技感 UI 配置
+st.set_page_config(page_title="🐇黎小独特匹配小工具🔧", layout="wide")
 
+# 自定义 CSS：深色背景、荧光线条、毛玻璃效果
 st.markdown("""
     <style>
-    .blue-header { background-color: #3498db; color: white; padding: 10px 20px; border-radius: 5px; font-weight: bold; margin-bottom: 15px; }
+    .main { background-color: #0e1117; color: #ffffff; }
+    .stApp { background: radial-gradient(circle, #1b2735 0%, #090a0f 100%); }
+    
+    /* 科技感卡片 */
+    .tech-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid #00f2ff;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+        margin-bottom: 20px;
+    }
+    
+    /* 标题特效 */
+    .tech-title {
+        font-family: 'Courier New', monospace;
+        color: #00f2ff;
+        text-shadow: 0 0 10px #00f2ff;
+        text-align: center;
+        border-bottom: 2px solid #00f2ff;
+        padding-bottom: 10px;
+        margin-bottom: 30px;
+    }
+
+    /* 按钮美化 */
+    .stButton>button {
+        background: linear-gradient(45deg, #00f2ff, #0072ff);
+        color: white;
+        border: none;
+        box-shadow: 0 0 10px #00f2ff;
+        width: 100%;
+        font-weight: bold;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🐇黎小专属匹配小工具🔧")
+st.markdown('<h1 class="tech-title">LI YANG DATA MATCHING SYSTEM v2.0</h1>', unsafe_allow_html=True)
 
-# 1. 文件上传
-st.markdown('<div class="blue-header">1. 上传文件</div>', unsafe_allow_html=True)
-c1, c2 = st.columns(2)
-with c1:
-    base_file = st.file_uploader("上传原文件 (底库表)", type=["xlsx", "csv"], key="u_base")
-with c2:
-    target_file = st.file_uploader("上传待匹配文件 (目标表)", type=["xlsx", "csv"], key="u_target")
-
+# 2. 核心逻辑函数
 def split_text(text):
-    """通用的文本切分函数，支持空格、斜杠、逗号、分号"""
+    """支持多种符号切分内容"""
     if pd.isna(text): return []
     return set(re.split(r'[ /／,，;；|]+', str(text).strip()))
+
+# 3. 文件上传区
+st.markdown('<div class="tech-card"><h3>📂 数据矩阵导入</h3>', unsafe_allow_html=True)
+c1, c2 = st.columns(2)
+with c1:
+    base_file = st.file_uploader("上传原文件 (BASE DATA)", type=["xlsx", "csv"], key="u_base")
+with c2:
+    target_file = st.file_uploader("上传待匹配表 (TARGET DATA)", type=["xlsx", "csv"], key="u_target")
+st.markdown('</div>', unsafe_allow_html=True)
 
 if base_file and target_file:
     df_base = pd.read_excel(base_file) if base_file.name.endswith('xlsx') else pd.read_csv(base_file)
@@ -33,80 +69,68 @@ if base_file and target_file:
     base_cols = df_base.columns.tolist()
     target_cols = df_target.columns.tolist()
 
-    st.markdown('<div class="blue-header">2. 自定义字段映射与逻辑</div>', unsafe_allow_html=True)
-    
+    # 4. 参数配置区
+    st.markdown('<div class="tech-card"><h3>⚙️ 逻辑参数协议</h3>', unsafe_allow_html=True)
     col_a, col_b = st.columns(2)
+    
     with col_a:
-        st.write("### 🔍 设定比对字段")
-        m_base_cols = st.multiselect("底库表比对列 (如：导演/演员)", base_cols, key="m_base")
-        m_target_cols = st.multiselect("目标表对应列 (数量须一致)", target_cols, key="m_target")
+        st.write("#### 🔗 字段映射对齐")
+        m_base_cols = st.multiselect("底库参与比对字段", base_cols, key="m_base")
+        m_target_cols = st.multiselect("目标表对应比对字段", target_cols, key="m_target")
         
     with col_b:
-        st.write("### 📋 结果反馈设置")
-        feedback_cols = st.multiselect("需从目标表反馈的附加列：", target_cols, key="f_cols")
-        # 针对主片名比对的敏感度（非切分字段使用）
-        threshold = st.slider("非切分字段匹配敏感度", 50, 100, 90)
+        st.write("#### 📊 输出反馈配置")
+        feedback_cols = st.multiselect("匹配成功后返回字段", target_cols, key="f_cols")
+        # 针对长内容的最小匹配要求
+        hit_min = st.number_input("最小命中元素数 (只要匹配到一个就填1)", min_value=1, value=1)
 
-    if st.button("执行高精度拆分匹配", type="primary"):
+    if st.button("EXECUTE MATCHING / 执行深度匹配"):
         if len(m_base_cols) != len(m_target_cols):
-            st.error("❌ 错误：两表选中的比对列数量必须相等！")
+            st.error("SYSTEM ERROR: 比对字段数量不匹配！")
         elif not m_base_cols:
-            st.warning("⚠️ 请选择比对字段")
+            st.warning("SYSTEM WARNING: 请设定比对参数。")
         else:
             results = []
             bar = st.progress(0)
             
-            # 遍历底库执行比对
+            # 构建目标池
+            choices = []
+            for _, t_row in df_target.iterrows():
+                choices.append(" ".join([str(t_row[c]) for c in m_target_cols]))
+            
+            # 迭代比对
             for i, b_row in df_base.iterrows():
-                best_match_idx = -1
-                max_hit_count = -1
-                final_diffs = []
+                best_idx, max_hits = -1, 0
                 
-                # 为了性能，建议至少有一个关键比对项（如片名）
-                # 这里执行全量搜索以保证“只要匹配到一个就算”
                 for t_idx, t_row in df_target.iterrows():
-                    current_hit_count = 0
-                    current_diffs = []
-                    
+                    current_hits = 0
                     for bc, tc in zip(m_base_cols, m_target_cols):
                         b_elements = split_text(b_row[bc])
                         t_elements = split_text(t_row[tc])
-                        
-                        # 交集计算：匹配到了几个相同项
-                        hits = b_elements.intersection(t_elements)
-                        if hits:
-                            current_hit_count += len(hits)
-                        else:
-                            # 如果该字段一个都没对上，记录差异
-                            current_diffs.append(f"{bc}不匹配")
+                        current_hits += len(b_elements.intersection(t_elements))
                     
-                    # 记录命中数最多的那一行
-                    if current_hit_count > max_hit_count:
-                        max_hit_count = current_hit_count
-                        best_match_idx = t_idx
-                        final_diffs = current_diffs
+                    if current_hits > max_hits:
+                        max_hits = current_hits
+                        best_idx = t_idx
                 
-                # 组装结果
-                row_feedback = {f"反馈_{col}": "NULL" for col in feedback_cols}
-                if best_match_idx != -1 and max_hit_count > 0:
-                    matched_target_row = df_target.iloc[best_match_idx]
+                # 反馈逻辑
+                row_res = {f"反馈_{col}": "NULL" for col in feedback_cols}
+                if best_idx != -1 and max_hits >= hit_min:
+                    target_match = df_target.iloc[best_idx]
                     for col in feedback_cols:
-                        row_feedback[f"反馈_{col}"] = matched_target_row[col]
-                    
-                    row_feedback["匹配状态"] = "已对齐"
-                    row_feedback["命中个数"] = f"命中{max_hit_count}个元素"
-                    row_feedback["差异标记"] = " | ".join(final_diffs) if final_diffs else "全对齐"
+                        row_res[f"反馈_{col}"] = target_match[col]
+                    row_res["STATUS"] = "SUCCESS"
+                    row_res["HIT_COUNT"] = f"命中{max_hits}项"
                 else:
-                    row_feedback["匹配状态"] = "未找到"
-                    row_feedback["命中个数"] = "命中0个"
-                    row_feedback["差异标记"] = "无重合内容"
+                    row_res["STATUS"] = "FAILED"
+                    row_res["HIT_COUNT"] = "0"
                 
-                results.append(row_feedback)
-                if i % 100 == 0:
-                    bar.progress(i / len(df_base))
+                results.append(row_res)
+                if i % 100 == 0: bar.progress(i / len(df_base))
 
+            # 展示结果
             final_df = pd.concat([df_base, pd.DataFrame(results)], axis=1)
-            st.success("✅ 拆分匹配完成！")
+            st.success("ANALYSIS COMPLETE / 分析任务已完成")
             st.dataframe(final_df.head(100))
-            st.download_button("📥 下载差异反馈报告", final_df.to_csv(index=False).encode('utf-8-sig'), "split_match_report.csv")
-
+            st.download_button("DOWNLOAD REPORT / 下载数据报告", final_df.to_csv(index=False).encode('utf-8-sig'), "tech_match_report.csv")
+    st.markdown('</div>', unsafe_allow_html=True)
